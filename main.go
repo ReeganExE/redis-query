@@ -32,11 +32,22 @@ var (
 	client *redis.Client
 )
 
+var httpUsage = `HTTP port, if specified, app will start an HTTP server on the specified port
+GET http://0.0.0.0:port/query?key=your-key
+
+HTTP/1.1 200 OK
+Content-type: application/json
+Content-Length: 27
+Connection: Closed
+
+{"value": "extracted value"}
+`
+
 func main() {
 	flag.StringVar(&args.addr, "addr", "127.0.0.1:6379", "Redis address")
-	flag.StringVar(&args.pattern, "pattern", "", "A pattern to extract the Value")
+	flag.StringVar(&args.pattern, "pattern", "", `A regex pattern to extract the Value. e.g: -pattern "(\d+)"`)
 	flag.StringVar(&args.key, "key", "", "Key name")
-	flag.UintVar(&args.port, "port", 0, "HTTP port")
+	flag.UintVar(&args.port, "port", 0, httpUsage)
 	flag.BoolVar(&args.verbose, "verbose", false, "Print raw Value")
 
 	flag.Parse()
@@ -114,7 +125,7 @@ func getValue(key string) (string, error) {
 		if pattern.MatchString(val) {
 			groups := pattern.FindStringSubmatch(val)
 			if len(groups) == 2 {
-				// return this first matched group
+				// return the first matched group
 				return groups[1], nil
 			}
 
