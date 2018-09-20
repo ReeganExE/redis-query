@@ -20,57 +20,58 @@ type param struct {
 }
 
 type HttpResponse struct {
-	Value string
+	Value string `json:"value"`
+}
+
+type ErrorResponse struct {
+	Error string `json:"error"`
 }
 
 var (
-	p      param
+	args   param
 	client *redis.Client
 )
 
 func main() {
-	flag.StringVar(&p.addr, "addr", "127.0.0.1:6379", "Redis address")
-	flag.StringVar(&p.pattern, "pattern", "", "A pattern to extract the Value")
-	flag.StringVar(&p.key, "key", "", "Key name")
-	flag.UintVar(&p.port, "port", 0, "HTTP port")
-	flag.BoolVar(&p.verbose, "verbose", false, "Print raw Value")
+	flag.StringVar(&args.addr, "addr", "127.0.0.1:6379", "Redis address")
+	flag.StringVar(&args.pattern, "pattern", "", "A pattern to extract the Value")
+	flag.StringVar(&args.key, "key", "", "Key name")
+	flag.UintVar(&args.port, "port", 0, "HTTP port")
+	flag.BoolVar(&args.verbose, "verbose", false, "Print raw Value")
 
 	flag.Parse()
 
-	if p.pattern == "" {
-		flag.Usage()
-	}
+	client = newClient(args.addr)
 
-	if p.key == "" {
-		flag.Usage()
-	}
+	if args.port != 0 {
+		// Start a HTTP server on the specified port
+		http.HandleFunc("/query", httpHandler)
 
-	client = newClient(p.addr)
+		fmt.Printf("HTTP server listens on port %d\n", args.port)
 
-	if p.port != 0 {
-		http.HandleFunc("/", httpHandler)
-
-		fmt.Printf("HTTP server listens on port %d\n", p.port)
-
-		if e := http.ListenAndServe(fmt.Sprintf(":%d", p.port), nil); e != nil {
+		if e := http.ListenAndServe(fmt.Sprintf(":%d", args.port), nil); e != nil {
 			log.Fatal(e)
 		}
 
 		return
 	}
 
-	hash, e := client.HGetAll(p.key).Result()
+	if args.pattern == "" {
+		flag.Usage()
+		return
+	}
 
+	if args.key == "" {
+		flag.Usage()
+		return
+	}
+
+	value, e := getValue(args.key)
 	if e != nil {
 		log.Fatal(e)
 	}
 
-	pattern := regexp.MustCompile(p.pattern)
-	for _, val := range hash {
-		if pattern.MatchString(val) {
-			println(pattern.FindStringSubmatch(val)[1])
-		}
-	}
+	fmt.Println(value)
 }
 
 func httpHandler(w http.ResponseWriter, req *http.Request) {
@@ -79,19 +80,20 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 	key := req.FormValue("key")
 
 	if key == "" {
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(&ErrorResponse{"Invalid parameter. Use ?key=..."})
 		return
 	}
 
 	value, e := getValue(key)
 
-	if p.verbose {
+	if args.verbose {
 		fmt.Println(value, e)
 	}
 
 	if e != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(fmt.Sprintf(`{"error": "%s"}`, e.Error())))
+		json.NewEncoder(w).Encode(&ErrorResponse{e.Error()})
 		return
 	}
 
@@ -107,10 +109,18 @@ func getValue(key string) (string, error) {
 		return "", e
 	}
 
-	pattern := regexp.MustCompile(p.pattern)
+	pattern := regexp.MustCompile(args.pattern)
 	for _, val := range hash {
 		if pattern.MatchString(val) {
-			return pattern.FindStringSubmatch(val)[1], nil
+			groups := pattern.FindStringSubmatch(val)
+			if len(groups) == 2 {
+				// return this first matched group
+				return groups[1], nil
+			}
+
+			// we don't know which group to be return,
+			// return the whole matched one
+			return groups[0], nil
 		}
 	}
 
