@@ -77,7 +77,7 @@ func main() {
 		return
 	}
 
-	value, e := getValue(args.key)
+	value, e := getValue(args.key, args.pattern)
 	if e != nil {
 		log.Fatal(e)
 	}
@@ -89,6 +89,7 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("content-type", "application/json")
 
 	key := req.FormValue("key")
+	pattern := req.FormValue("pattern")
 
 	if key == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -96,7 +97,11 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	value, e := getValue(key)
+	if pattern == "" {
+		pattern = args.pattern
+	}
+
+	value, e := getValue(key, pattern)
 
 	if args.verbose {
 		fmt.Println(value, e)
@@ -111,7 +116,7 @@ func httpHandler(w http.ResponseWriter, req *http.Request) {
 	json.NewEncoder(w).Encode(&HttpResponse{value})
 }
 
-func getValue(key string) (string, error) {
+func getValue(key, pattern string) (string, error) {
 	log.Printf("Getting key %s", key)
 
 	hash, e := client.HGetAll(key).Result()
@@ -120,10 +125,10 @@ func getValue(key string) (string, error) {
 		return "", e
 	}
 
-	pattern := regexp.MustCompile(args.pattern)
+	reg := regexp.MustCompile(pattern)
 	for _, val := range hash {
-		if pattern.MatchString(val) {
-			groups := pattern.FindStringSubmatch(val)
+		if reg.MatchString(val) {
+			groups := reg.FindStringSubmatch(val)
 			if len(groups) == 2 {
 				// return the first matched group
 				return groups[1], nil
