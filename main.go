@@ -33,7 +33,7 @@ var (
 )
 
 var httpUsage = `HTTP port, if specified, app will start an HTTP server on the specified port
-GET http://0.0.0.0:port/query?key=your-key
+GET http://0.0.0.0:port/query?key=your-key&pattern=(\d+)
 
 HTTP/1.1 200 OK
 Content-type: application/json

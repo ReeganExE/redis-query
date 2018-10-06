@@ -22,7 +22,7 @@ redis-query -help
   -port uint (Optional)
         HTTP port, if specified, app will start an HTTP server on the specified port
 
-        GET http://0.0.0.0:port/query?key=your-key
+        GET http://0.0.0.0:port/query?key=your-key&pattern=(\d+)
 
         HTTP/1.1 200 OK
         Content-type: application/json
@@ -40,13 +40,13 @@ redis-query -help
 ```sh
 docker run --rm \
   -p 8910:8910 \
-  reeganexe/redis-query -addr 10.11.12.13:6379 -port 8910 -pattern "It has been (\d+) years"
+  reeganexe/redis-query -addr 10.11.12.13:6379 -port 8910
 ```
 
 Then,
 
 ```sh
-curl -i http://0.0.0.0:8910/query?key=your:key
+curl -i "http://0.0.0.0:8910/query?key=your:key&pattern=It has been (\d+) years"
 
 HTTP/1.1 200 OK
 Content-type: application/json
